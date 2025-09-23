@@ -8,7 +8,7 @@ Usage:
         --spec ./openapi/base.yml \
         --diff ./api_diff.json \
         --out ./tests/auto_generated \
-        [--dry] [--verbose]
+        [--verbose]
 
 Environment:
     GROQ_API_KEY   - your Groq API key
@@ -16,6 +16,7 @@ Environment:
 
 import argparse
 import os
+import sys
 import json
 import yaml
 from groq import Groq
@@ -30,7 +31,6 @@ def parse_args():
     parser.add_argument("--spec", required=True, help="Path to the OpenAPI spec (.yml/.json)")
     parser.add_argument("--diff", required=True, help="Path to the oasdiff JSON file")
     parser.add_argument("--out", required=True, help="Output directory for the .feature file")
-    parser.add_argument("--dry", action="store_true", help="Print generated tests instead of writing file")
     parser.add_argument("--verbose", action="store_true", help="Print debug information")
     return parser.parse_args()
 
@@ -42,6 +42,7 @@ def read_yaml(path):
     with open(path, "r") as f:
         return yaml.safe_load(f)
 
+
 def read_json(path):
     if not os.path.exists(path):
         return {}
@@ -50,6 +51,7 @@ def read_json(path):
             return json.load(f)
         except json.JSONDecodeError:
             return {}
+
 
 def log(msg, verbose=False):
     if verbose:
@@ -118,7 +120,7 @@ def main():
 
     # Ensure Groq key exists
     if "GROQ_API_KEY" not in os.environ:
-        print("❌ GROQ_API_KEY environment variable is missing.", file=os.stderr)
+        print("❌ GROQ_API_KEY environment variable is missing.", file=sys.stderr)
         exit(1)
 
     # Load spec & diff
@@ -128,26 +130,26 @@ def main():
     # Build prompt
     prompt = build_prompt(spec, diff)
     if not prompt:
-        print("❌ Could not build prompt – aborting.", file=os.stderr)
+        print("❌ Could not build prompt – aborting.", file=sys.stderr)
         exit(1)
 
     # Generate Karate tests
     try:
         karate_tests = call_groq(prompt, verbose=args.verbose)
     except Exception as e:
-        print(f"❌ Groq request failed: {e}", file=os.stderr)
+        print(f"❌ Groq request failed: {e}", file=sys.stderr)
         exit(1)
 
-    # Dry-run: print tests
-    if args.dry:
-        print("\n=== Generated Karate Tests ===\n")
-        print(karate_tests)
-    else:
-        os.makedirs(args.out, exist_ok=True)
-        out_file = os.path.join(args.out, "auto_generated.feature")
-        with open(out_file, "w") as f:
-            f.write(karate_tests)
-        print(f"✅ Karate tests written to {out_file}")
+    # Print the generated tests
+    print("\n=== Generated Karate Tests ===\n")
+    print(karate_tests)
+
+    # Write to file
+    os.makedirs(args.out, exist_ok=True)
+    out_file = os.path.join(args.out, "auto_generated.feature")
+    with open(out_file, "w") as f:
+        f.write(karate_tests)
+    print(f"\n✅ Karate tests written to {out_file}")
 
 
 if __name__ == "__main__":
