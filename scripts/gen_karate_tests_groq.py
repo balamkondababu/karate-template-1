@@ -60,11 +60,8 @@ def read_file(path: str) -> str:
 # --------------------------------------------------------------------------- #
 # 3️⃣  Parse oasdiff output
 # --------------------------------------------------------------------------- #
-def parse_added_endpoints(diff_json: str, spec_yaml: dict) -> List[dict]:
-    """
-    Return a list of added endpoints from the oasdiff JSON.
-    Supports both dict-based and list-based 'added' structures.
-    """
+def parse_added_endpoints(diff_json: str) -> list[dict]:
+    """Return a list of added endpoints from the oasdiff JSON."""
     try:
         diff = json.loads(diff_json)
     except json.JSONDecodeError as e:
@@ -73,28 +70,31 @@ def parse_added_endpoints(diff_json: str, spec_yaml: dict) -> List[dict]:
 
     endpoints = []
 
-    # New format: list under extensions.added
-    added_paths = diff.get("added") or diff.get("extensions", {}).get("added", [])
-
-    if isinstance(added_paths, dict):
-        # Old format: dict with path -> method mapping
-        for path, methods in added_paths.items():
+    if isinstance(diff, dict):
+        # old style: dict with 'added'
+        added_paths = diff.get("added") or diff.get("extensions", {}).get("added", [])
+        for path, methods in (added_paths.items() if isinstance(added_paths, dict) else []):
             for method, details in methods.items():
                 endpoints.append({
                     "path": path,
                     "method": method.upper(),
                     "summary": details.get("summary") or details.get("description", "")
                 })
-    elif isinstance(added_paths, list):
-        # List of paths – get methods from spec
-        for path in added_paths:
-            methods = spec_yaml.get("paths", {}).get(path, {})
-            for method, details in methods.items():
+
+    elif isinstance(diff, list):
+        # new style: list of changes
+        for change in diff:
+            if change.get("change-type") == "added" and "path" in change and "method" in change:
                 endpoints.append({
-                    "path": path,
-                    "method": method.upper(),
-                    "summary": details.get("summary", "")
+                    "path": change["path"],
+                    "method": change["method"].upper(),
+                    "summary": change.get("summary", "")
                 })
+
+    else:
+        print(f"❌ Unexpected diff format: {type(diff)}", file=sys.stderr)
+        sys.exit(1)
+
     return endpoints
 
 
