@@ -175,7 +175,7 @@ def main() -> None:
     diff_json = read_file(args.diff)
 
     # Determine added endpoints
-    added_endpoints = parse_added_endpoints(diff_json, spec_yaml)
+    added_endpoints = parse_added_endpoints(diff_json)
     if not added_endpoints:
         print("✅ No new endpoints detected – nothing to generate.", file=sys.stderr)
         sys.exit(0)
