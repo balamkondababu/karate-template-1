@@ -23,6 +23,7 @@ import sys
 import textwrap
 from pathlib import Path
 from typing import List
+from groq.exceptions import GroqError
 
 import groq
 import requests
@@ -131,7 +132,7 @@ def build_prompt(spec: str, endpoints: List[dict]) -> str:
     reraise=True,
     stop=stop_after_attempt(5),
     wait=wait_exponential(multiplier=1, min=4, max=60),
-    retry=retry_if_exception_type((requests.exceptions.RequestException, groq.error.GroqError)),
+    retry=retry_if_exception_type((requests.exceptions.RequestException, GroqError)),
 )
 def call_groq(prompt: str, *, verbose: bool = False) -> str:
     _log("[Groq] Sending request…", verbose=verbose)
@@ -173,7 +174,7 @@ def main() -> None:
     # 4️⃣ Ask Groq
     try:
         generated = call_groq(prompt, verbose=args.verbose)
-    except groq.error.GroqError as exc:
+    except GroqError as exc:
         print(f"❌ Groq request failed: {exc}", file=sys.stderr)
         sys.exit(1)
 
