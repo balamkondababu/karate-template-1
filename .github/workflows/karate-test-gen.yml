@@ -18,17 +18,17 @@ jobs:
           # Get the latest release download URL for linux_amd64 tar.gz
           LATEST=$(curl -s https://api.github.com/repos/Tufin/oasdiff/releases/latest \
             | grep browser_download_url \
-            | grep linux_amd64.tar.gz \
+            | grep 'linux_amd64.tar.gz' \
             | cut -d '"' -f 4)
           echo "Downloading oasdiff from $LATEST"
-          
+      
           # Download and extract
           curl -L "$LATEST" -o oasdiff.tar.gz
           tar -xzf oasdiff.tar.gz
           sudo mv oasdiff /usr/local/bin/oasdiff
           chmod +x /usr/local/bin/oasdiff
-          
-          # Verify
+      
+          # Verify install
           /usr/local/bin/oasdiff version
 
       - name: Detect API changes
