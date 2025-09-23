@@ -15,12 +15,19 @@ jobs:
 
       - name: Install oasdiff
         run: |
-          # Get the latest release download URL for linux_amd64 tar.gz
+          # Fetch latest release info and extract linux_amd64 tar.gz link
           LATEST=$(curl -s https://api.github.com/repos/Tufin/oasdiff/releases/latest \
             | grep browser_download_url \
             | grep 'linux_amd64.tar.gz' \
             | cut -d '"' -f 4)
+      
           echo "Downloading oasdiff from $LATEST"
+      
+          # Fail if empty
+          if [ -z "$LATEST" ]; then
+            echo "❌ Could not find linux_amd64 release asset for oasdiff"
+            exit 1
+          fi
       
           # Download and extract
           curl -L "$LATEST" -o oasdiff.tar.gz
@@ -30,6 +37,7 @@ jobs:
       
           # Verify install
           /usr/local/bin/oasdiff version
+      
 
       - name: Detect API changes
         run: |
