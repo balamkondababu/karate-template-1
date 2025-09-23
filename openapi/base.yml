@@ -43,11 +43,35 @@ paths:
                     type: integer
                   name:
                     type: string
-/users/{id}:
+  /users/{id}:
+      get:
+        summary: Get user by ID
+        parameters:
+          - name: id
+            in: path
+            required: true
+            schema:
+              type: integer
+        responses:
+          '200':
+            description: Successful response
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    name:
+                      type: string
+  /users/{id}/{applicationId}:
     get:
-      summary: Get user by ID
+      summary: Get user by application id
       parameters:
         - name: id
+          in: path
+          required: true
+        - name: applicationId
           in: path
           required: true
           schema:
@@ -63,4 +87,4 @@ paths:
                   id:
                     type: integer
                   name:
-                    type: string
+                    type: string                    
