@@ -15,9 +15,9 @@ jobs:
 
       - name: Install oasdiff
         run: |
-          curl -L https://github.com/Tufin/oasdiff/releases/latest/download/oasdiff-linux-amd64 -o /usr/local/bin/oasdiff
+          curl -L https://github.com/Tufin/oasdiff/releases/download/v2.3.0/oasdiff-linux-amd64 -o /usr/local/bin/oasdiff
           chmod +x /usr/local/bin/oasdiff
-          oasdiff version
+          /usr/local/bin/oasdiff version
 
       - name: Detect API changes
         run: |
