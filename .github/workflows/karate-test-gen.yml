@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 
 
       - name: Install oasdiff
         run: |
@@ -37,7 +39,7 @@ jobs:
       - name: Detect API changes
         run: |
           git fetch origin main
-          oasdiff breaking --format json ./openapi/base.yml origin/main:openapi/base.yml > api_diff.json || true
+          oasdiff breaking --format json ./openapi/base.yml temp_main_openapi/base.yml > api_diff.json || true
 
       - name: Set up Python
         uses: actions/setup-python@v4
