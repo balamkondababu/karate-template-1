@@ -37,10 +37,9 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           python scripts/gen_karate_tests_groq.py \
-            --spec ./openapi/base.yml \
-            --diff ./api_diff.json \
-            --out ./tests/auto_generated \
-            --dry
+          --spec ./openapi/base.yml \
+          --diff ./api_diff.json \
+          --out ./tests/auto_generated
 
       - name: Commit auto-generated tests
         run: |
