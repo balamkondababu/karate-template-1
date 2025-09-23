@@ -40,6 +40,7 @@ jobs:
             --spec ./openapi/base.yml \
             --diff ./api_diff.json \
             --out ./tests/auto_generated
+            --dry
 
       - name: Commit auto-generated tests
         run: |
