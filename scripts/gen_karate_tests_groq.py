@@ -15,7 +15,6 @@ Environment:
 """
 
 from __future__ import annotations
-
 import argparse
 import json
 import os
@@ -24,6 +23,8 @@ import textwrap
 from pathlib import Path
 from typing import List
 from datetime import datetime
+import yaml
+
 
 # --------------------------------------------------------------------------- #
 # 1️⃣  Argument parsing
@@ -59,44 +60,48 @@ def read_file(path: str) -> str:
 # --------------------------------------------------------------------------- #
 # 3️⃣  Parse oasdiff output
 # --------------------------------------------------------------------------- #
-def parse_added_endpoints(diff_json: str) -> list[dict]:
-    """Return a list of added endpoints from oasdiff JSON."""
+def parse_added_endpoints(diff_json: str, spec_yaml: dict) -> List[dict]:
+    """
+    Return a list of added endpoints from the oasdiff JSON.
+    Supports both dict-based and list-based 'added' structures.
+    """
     try:
         diff = json.loads(diff_json)
     except json.JSONDecodeError as e:
         print(f"❌ Invalid JSON in diff file: {e}", file=sys.stderr)
         sys.exit(1)
 
-    endpoints: list[dict] = []
+    endpoints = []
 
-    # oasdiff JSON might be list or dict
-    if isinstance(diff, list):
-        for item in diff:
-            if "added" in item:
-                for path, methods in item["added"].items():
-                    for method, details in methods.items():
-                        endpoints.append({
-                            "path": path,
-                            "method": method.upper(),
-                            "summary": details.get("summary") or details.get("description", ""),
-                        })
-    elif isinstance(diff, dict):
-        for path, methods in diff.get("added", {}).items():
+    # New format: list under extensions.added
+    added_paths = diff.get("added") or diff.get("extensions", {}).get("added", [])
+
+    if isinstance(added_paths, dict):
+        # Old format: dict with path -> method mapping
+        for path, methods in added_paths.items():
             for method, details in methods.items():
                 endpoints.append({
                     "path": path,
                     "method": method.upper(),
-                    "summary": details.get("summary") or details.get("description", ""),
+                    "summary": details.get("summary") or details.get("description", "")
                 })
-    else:
-        print("❌ Unexpected diff JSON structure", file=sys.stderr)
-
+    elif isinstance(added_paths, list):
+        # List of paths – get methods from spec
+        for path in added_paths:
+            methods = spec_yaml.get("paths", {}).get(path, {})
+            for method, details in methods.items():
+                endpoints.append({
+                    "path": path,
+                    "method": method.upper(),
+                    "summary": details.get("summary", "")
+                })
     return endpoints
+
 
 # --------------------------------------------------------------------------- #
 # 4️⃣  Build the prompt
 # --------------------------------------------------------------------------- #
-def build_prompt(spec: str, endpoints: List[dict]) -> str:
+def build_prompt(spec_str: str, endpoints: List[dict]) -> str:
     if not endpoints:
         return ""
 
@@ -110,7 +115,7 @@ def build_prompt(spec: str, endpoints: List[dict]) -> str:
         Here is the full OpenAPI specification of the service:
 
         ```
-        {spec}
+        {spec_str}
         ```
 
         The following endpoints have just been added:
@@ -136,23 +141,20 @@ def build_prompt(spec: str, endpoints: List[dict]) -> str:
 # --------------------------------------------------------------------------- #
 def call_groq(prompt: str, *, verbose: bool = False) -> str:
     _log("[Groq] Sending request…", verbose=verbose)
-    try:
-        from groq import Groq
-        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-        response = client.chat.completions.create(
-            model="llama-3.1-70b-versatile",
-            temperature=0.2,
-            max_tokens=1500,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that writes Karate tests."},
-                {"role": "user", "content": prompt},
-            ],
-        )
-        _log("[Groq] Received response", verbose=verbose)
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        print(f"❌ Groq request failed: {e}", file=sys.stderr)
-        sys.exit(1)
+    from groq import Groq
+    client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+    response = client.chat.completions.create(
+        model="llama-3.1-70b-versatile",
+        temperature=0.2,
+        max_tokens=1500,
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant that writes Karate tests."},
+            {"role": "user", "content": prompt},
+        ],
+    )
+    _log("[Groq] Received response", verbose=verbose)
+    return response.choices[0].message.content.strip()
 
 
 # --------------------------------------------------------------------------- #
@@ -161,34 +163,39 @@ def call_groq(prompt: str, *, verbose: bool = False) -> str:
 def main() -> None:
     args = parse_args()
 
-    # Ensure Groq key exists
-    if "GROQ_API_KEY" not in os.environ:
-        print("❌ GROQ_API_KEY environment variable is missing.", file=sys.stderr)
+    # Load OpenAPI spec
+    spec_str = read_file(args.spec)
+    try:
+        spec_yaml = yaml.safe_load(spec_str)
+    except yaml.YAMLError as e:
+        print(f"❌ Failed to parse YAML: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Load spec & diff
-    spec = read_file(args.spec)
+    # Load diff JSON
     diff_json = read_file(args.diff)
 
     # Determine added endpoints
-    added_endpoints = parse_added_endpoints(diff_json)
+    added_endpoints = parse_added_endpoints(diff_json, spec_yaml)
     if not added_endpoints:
         print("✅ No new endpoints detected – nothing to generate.", file=sys.stderr)
         sys.exit(0)
 
-    # Build the prompt
-    prompt = build_prompt(spec, added_endpoints)
+    # Build LLM prompt
+    prompt = build_prompt(spec_str, added_endpoints)
     if not prompt:
         print("❌ Could not build prompt – aborting.", file=sys.stderr)
         sys.exit(1)
 
     # Call Groq
-    generated = call_groq(prompt, verbose=args.verbose)
+    try:
+        generated = call_groq(prompt, verbose=args.verbose)
+    except Exception as e:
+        print(f"❌ Groq request failed: {e}", file=sys.stderr)
+        sys.exit(1)
 
-    # Write feature file
+    # Write the feature file
     output_path = Path(args.out)
     output_path.mkdir(parents=True, exist_ok=True)
-
     timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     feature_file = output_path / f"auto_generated_{timestamp}.feature"
 
@@ -198,9 +205,16 @@ def main() -> None:
     else:
         feature_file.write_text(generated, encoding="utf-8")
         print(f"✅ Generated Karate tests → {feature_file}")
-        print("\n--- Auto-generated feature content ---\n")
-        print(generated)
 
 
+# --------------------------------------------------------------------------- #
 if __name__ == "__main__":
+    if "GROQ_API_KEY" not in os.environ:
+        print(
+            "❌ GROQ_API_KEY environment variable is missing.\n"
+            "     Add it as a secret in your GitHub Actions workflow.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     main()
