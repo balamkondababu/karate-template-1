@@ -16,7 +16,7 @@ jobs:
       - name: Install oasdiff
         run: |
           # Latest release binary URL (Linux)
-          LATEST="https://github.com/Tufin/oasdiff/releases/latest/download/oasdiff-linux-amd64"
+          LATEST="https://github.com/oasdiff/oasdiff/releases/download/v1.11.7/oasdiff_1.11.7_linux_amd64.tar.gz"
           
           # Download and move to /usr/local/bin
           curl -L "$LATEST" -o /usr/local/bin/oasdiff
