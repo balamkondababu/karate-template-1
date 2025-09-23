@@ -66,7 +66,7 @@ def main():
     print("🔍 Sending prompt to Groq for test generation...")
 
     response = client.chat.completions.create(
-        model="llama3-70b-8192",  # good balance between reasoning & generation
+        model="llama-3.3-70b-versatile",  # good balance between reasoning & generation
         messages=[
             {"role": "system", "content": "You are a helpful assistant for test automation."},
             {"role": "user", "content": prompt},
