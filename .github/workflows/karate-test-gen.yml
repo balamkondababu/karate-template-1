@@ -32,11 +32,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Generate Karate tests with LLM
+      - name: Generate Karate tests with Groq
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
-          python scripts/gen_karate_tests.py \
+          python scripts/gen_karate_tests_groq.py \
             --spec ./openapi/base.yml \
             --diff ./api_diff.json \
             --out ./tests/auto_generated
