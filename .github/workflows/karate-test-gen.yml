@@ -3,8 +3,7 @@ name: Karate Test Generation PoC
 on:
   pull_request:
     paths:
-      - "api/openapi.yaml"
-      - "api/swagger.json"
+      - "openapi/base.yml"
 
 jobs:
   karate-test-gen:
@@ -23,7 +22,7 @@ jobs:
       - name: Detect API changes
         run: |
           git fetch origin main
-          oasdiff breaking ./api/openapi.yaml origin/main:api/openapi.yaml > api_diff.json || true
+          oasdiff breaking ./openapi/base.yml origin/main:openapi/base.yml > api_diff.json || true
 
       - name: Set up Python
         uses: actions/setup-python@v4
