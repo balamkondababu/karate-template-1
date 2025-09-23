@@ -27,6 +27,12 @@ jobs:
           # Verify install
           oasdiff --help
 
+      - name: Fetch main branch OpenAPI spec
+        run: |
+            git fetch origin main
+            mkdir -p temp_main_openapi
+            git show origin/main:openapi/base.yml > temp_main_openapi/base.yml
+            
       - name: Detect API changes
         run: |
           git fetch origin main
