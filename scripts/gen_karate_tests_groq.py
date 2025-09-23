@@ -1,209 +1,87 @@
 #!/usr/bin/env python3
-"""
-Generate Karate .feature files from an OpenAPI spec and an oasdiff JSON
-using the Groq API (Llama‑3.1).
-
-Usage:
-    python scripts/gen_karate_tests_groq.py \
-        --spec ./openapi/base.yml \
-        --diff ./api_diff.json \
-        --out  ./tests/auto_generated \
-        [--dry] [--verbose]
-
-Environment:
-    GROQ_API_KEY   - your Groq API key
-"""
-
-from __future__ import annotations
-
 import argparse
-import json
 import os
-import sys
-import textwrap
-from pathlib import Path
-from typing import List
-from groq.exceptions import GroqError
+import json
+import yaml
+from groq import Groq
 
-import groq
-import requests
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+TEMPLATE_PROMPT = """
+You are an expert in Karate DSL API testing.
+Given the OpenAPI spec and a diff of newly added or changed APIs, generate a Karate test suite.
 
+Rules:
+- Use Karate DSL (.feature file) syntax
+- Cover at least one positive test for each new/changed endpoint
+- Add placeholders for request bodies and expected responses
+- Keep it simple and readable
 
-# --------------------------------------------------------------------------- #
-# 1️⃣  Argument parsing
-# --------------------------------------------------------------------------- #
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Generate Karate tests from OpenAPI + oasdiff JSON (Groq)."
-    )
-    parser.add_argument("--spec", required=True, help="Path to the OpenAPI spec (.yml/.json)")
-    parser.add_argument("--diff", required=True, help="Path to the oasdiff JSON file")
-    parser.add_argument("--out", required=True, help="Output directory for the .feature file")
-    parser.add_argument("--dry", action="store_true", help="Do not write files – just print what would be written")
-    parser.add_argument("--verbose", action="store_true", help="Print debug information")
-    return parser.parse_args()
+Return only the Karate test content.
+"""
 
+def load_yaml(path):
+    with open(path, "r") as f:
+        return yaml.safe_load(f)
 
-# --------------------------------------------------------------------------- #
-# 2️⃣  Utility helpers
-# --------------------------------------------------------------------------- #
-def _log(msg: str, *, verbose: bool) -> None:
-    if verbose:
-        print(msg, file=sys.stderr)
+def load_json(path):
+    if not os.path.exists(path):
+        return {}
+    with open(path, "r") as f:
+        try:
+            return json.load(f)
+        except json.JSONDecodeError:
+            return {}
 
+def main():
+    parser = argparse.ArgumentParser(description="Generate Karate tests using Groq LLM")
+    parser.add_argument("--spec", required=True, help="Path to OpenAPI spec (YAML)")
+    parser.add_argument("--diff", required=True, help="Path to API diff JSON")
+    parser.add_argument("--out", required=True, help="Output folder for Karate tests")
+    args = parser.parse_args()
 
-def read_file(path: str) -> str:
-    try:
-        return Path(path).read_text(encoding="utf-8")
-    except FileNotFoundError:
-        print(f"❌ File not found: {path}", file=sys.stderr)
-        sys.exit(1)
+    os.makedirs(args.out, exist_ok=True)
 
+    # Load inputs
+    spec = load_yaml(args.spec)
+    diff = load_json(args.diff)
 
-# --------------------------------------------------------------------------- #
-# 3️⃣  Parse oasdiff output
-# --------------------------------------------------------------------------- #
-def parse_added_endpoints(diff_json: str) -> List[dict]:
-    """Return a list of added endpoints from the oasdiff JSON."""
-    try:
-        diff = json.loads(diff_json)
-    except json.JSONDecodeError as e:
-        print(f"❌ Invalid JSON in diff file: {e}", file=sys.stderr)
-        sys.exit(1)
+    # Extract changed endpoints from diff
+    changed_paths = []
+    if diff:
+        for breaking in diff.get("breakingChanges", []):
+            path = breaking.get("path")
+            if path and path not in changed_paths:
+                changed_paths.append(path)
 
-    added = diff.get("added", {})
-    endpoints: List[dict] = []
+    # If no diff info, just cover everything
+    if not changed_paths:
+        changed_paths = list(spec.get("paths", {}).keys())
 
-    for path, methods in added.items():
-        for method, details in methods.items():
-            endpoints.append(
-                {
-                    "path": path,
-                    "method": method.upper(),
-                    "summary": details.get("summary") or details.get("description", ""),
-                }
-            )
-    return endpoints
+    client = Groq(api_key=os.environ["GROQ_API_KEY"])
 
-
-# --------------------------------------------------------------------------- #
-# 4️⃣  Build the prompt
-# --------------------------------------------------------------------------- #
-def build_prompt(spec: str, endpoints: List[dict]) -> str:
-    if not endpoints:
-        return ""
-
-    endpoint_list = "\n".join(
-        f"- `{ep['method']} {ep['path']}`: {ep['summary']}" for ep in endpoints
+    # Prepare prompt
+    prompt = TEMPLATE_PROMPT + "\n\nOpenAPI Paths:\n" + json.dumps(
+        {p: spec["paths"][p] for p in changed_paths}, indent=2
     )
 
-    prompt = textwrap.dedent(
-        f"""
-        You are an expert in Karate API testing.
-        Here is the full OpenAPI specification of the service:
+    print("🔍 Sending prompt to Groq for test generation...")
 
-        ```
-        {spec}
-        ```
-
-        The following endpoints have just been added:
-
-        {endpoint_list}
-
-        Generate a single Karate `.feature` file that contains:
-        • A `Feature:` line with a concise title.
-        • One `Scenario:` per new endpoint.
-        • The HTTP method, URL and a placeholder for authentication.
-        • A 200‑299 status‑code assertion.
-        • Basic body validation – match the top‑level keys defined in the response schema.
-        • Karate syntax: `* def`, `* match`, etc.
-
-        Output only the contents of the `.feature` file – no surrounding comments.
-        """
-    )
-    return prompt.strip()
-
-
-# --------------------------------------------------------------------------- #
-# 5️⃣  Groq call (with retry)
-# --------------------------------------------------------------------------- #
-@retry(
-    reraise=True,
-    stop=stop_after_attempt(5),
-    wait=wait_exponential(multiplier=1, min=4, max=60),
-    retry=retry_if_exception_type((requests.exceptions.RequestException, GroqError)),
-)
-def call_groq(prompt: str, *, verbose: bool = False) -> str:
-    _log("[Groq] Sending request…", verbose=verbose)
-    response = groq.ChatCompletion.create(
-        model="llama-3.1-70b-versatile",  # or any other Groq model you prefer
-        temperature=0.2,
-        max_tokens=1500,
+    response = client.chat.completions.create(
+        model="llama3-70b-8192",  # good balance between reasoning & generation
         messages=[
-            {"role": "system", "content": "You are a helpful assistant that writes Karate tests."},
+            {"role": "system", "content": "You are a helpful assistant for test automation."},
             {"role": "user", "content": prompt},
         ],
+        temperature=0.3,
     )
-    _log("[Groq] Received response", verbose=verbose)
-    return response.choices[0].message.content.strip()
+
+    karate_tests = response.choices[0].message.content
+
+    out_file = os.path.join(args.out, "auto_generated.feature")
+    with open(out_file, "w") as f:
+        f.write(karate_tests)
+
+    print(f"✅ Karate tests written to {out_file}")
 
 
-# --------------------------------------------------------------------------- #
-# 6️⃣  Main orchestration
-# --------------------------------------------------------------------------- #
-def main() -> None:
-    args = parse_args()
-
-    # 1️⃣ Load spec & diff
-    spec = read_file(args.spec)
-    diff_json = read_file(args.diff)
-
-    # 2️⃣ Determine added endpoints
-    added_endpoints = parse_added_endpoints(diff_json)
-    if not added_endpoints:
-        print("✅ No new endpoints detected – nothing to generate.", file=sys.stderr)
-        sys.exit(0)
-
-    # 3️⃣ Build the LLM prompt
-    prompt = build_prompt(spec, added_endpoints)
-    if not prompt:
-        print("❌ Could not build prompt – aborting.", file=sys.stderr)
-        sys.exit(1)
-
-    # 4️⃣ Ask Groq
-    try:
-        generated = call_groq(prompt, verbose=args.verbose)
-    except GroqError as exc:
-        print(f"❌ Groq request failed: {exc}", file=sys.stderr)
-        sys.exit(1)
-
-    # 5️⃣ Write the feature file (or dry‑run)
-    output_path = Path(args.out)
-    output_path.mkdir(parents=True, exist_ok=True)
-    feature_file = output_path / "auto_generated.feature"
-
-    if args.dry:
-        print(f"\n=== Dry‑run: would write to {feature_file} ===\n")
-        print(generated)
-    else:
-        feature_file.write_text(generated, encoding="utf-8")
-        print(f"✅ Generated Karate tests → {feature_file}")
-
-    sys.exit(0)
-
-
-# --------------------------------------------------------------------------- #
 if __name__ == "__main__":
-    # Ensure the Groq key exists
-    if "GROQ_API_KEY" not in os.environ:
-        print(
-            "❌ GROQ_API_KEY environment variable is missing.\n"
-            "     Add it as a secret in your GitHub Actions workflow.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    groq.api_key = os.getenv("GROQ_API_KEY")
-
     main()
