@@ -60,42 +60,27 @@ def read_file(path: str) -> str:
 # --------------------------------------------------------------------------- #
 # 3️⃣  Parse oasdiff output
 # --------------------------------------------------------------------------- #
-def parse_added_endpoints(diff_json: str) -> list[dict]:
-    """Return a list of added endpoints from the oasdiff JSON."""
-    try:
-        diff = json.loads(diff_json)
-    except json.JSONDecodeError as e:
-        print(f"❌ Invalid JSON in diff file: {e}", file=sys.stderr)
-        sys.exit(1)
+def parse_added_endpoints(diff_json: str) -> list:
+    diff = json.loads(diff_json)
+
+    # Handle old style
+    if isinstance(diff, dict):
+        added_paths = diff.get("added") or diff.get("extensions", {}).get("added", [])
+    # Handle unexpected list structure
+    elif isinstance(diff, list):
+        added_paths = diff
+    else:
+        added_paths = []
 
     endpoints = []
-
-    if isinstance(diff, dict):
-        # old style: dict with 'added'
-        added_paths = diff.get("added") or diff.get("extensions", {}).get("added", [])
-        for path, methods in (added_paths.items() if isinstance(added_paths, dict) else []):
-            for method, details in methods.items():
-                endpoints.append({
-                    "path": path,
-                    "method": method.upper(),
-                    "summary": details.get("summary") or details.get("description", "")
-                })
-
-    elif isinstance(diff, list):
-        # new style: list of changes
-        for change in diff:
-            if change.get("change-type") == "added" and "path" in change and "method" in change:
-                endpoints.append({
-                    "path": change["path"],
-                    "method": change["method"].upper(),
-                    "summary": change.get("summary", "")
-                })
-
-    else:
-        print(f"❌ Unexpected diff format: {type(diff)}", file=sys.stderr)
-        sys.exit(1)
-
+    for path in added_paths:
+        endpoints.append({
+            "path": path,
+            "method": "GET",  # default if method not known
+            "summary": ""
+        })
     return endpoints
+
 
 
 # --------------------------------------------------------------------------- #
