@@ -59,42 +59,39 @@ def read_file(path: str) -> str:
 # --------------------------------------------------------------------------- #
 # 3️⃣  Parse oasdiff output
 # --------------------------------------------------------------------------- #
-def parse_added_endpoints(diff_json: str) -> List[dict]:
-    """Return a list of added endpoints from the oasdiff JSON."""
+def parse_added_endpoints(diff_json: str) -> list[dict]:
+    """Return a list of added endpoints from oasdiff JSON."""
     try:
         diff = json.loads(diff_json)
     except json.JSONDecodeError as e:
         print(f"❌ Invalid JSON in diff file: {e}", file=sys.stderr)
         sys.exit(1)
 
-    endpoints: List[dict] = []
+    endpoints: list[dict] = []
 
+    # oasdiff JSON might be list or dict
     if isinstance(diff, list):
-        # oasdiff list format
         for item in diff:
-            if item.get("change") == "added":
-                path = item.get("path", "")
-                method = item.get("method", "GET").upper()
-                summary = item.get("summary") or item.get("description", "")
-                endpoints.append({"path": path, "method": method, "summary": summary})
+            if "added" in item:
+                for path, methods in item["added"].items():
+                    for method, details in methods.items():
+                        endpoints.append({
+                            "path": path,
+                            "method": method.upper(),
+                            "summary": details.get("summary") or details.get("description", ""),
+                        })
     elif isinstance(diff, dict):
-        # old dict format
-        added = diff.get("added", {})
-        for path, methods in added.items():
+        for path, methods in diff.get("added", {}).items():
             for method, details in methods.items():
-                endpoints.append(
-                    {
-                        "path": path,
-                        "method": method.upper(),
-                        "summary": details.get("summary") or details.get("description", ""),
-                    }
-                )
+                endpoints.append({
+                    "path": path,
+                    "method": method.upper(),
+                    "summary": details.get("summary") or details.get("description", ""),
+                })
     else:
-        print(f"❌ Unexpected diff JSON format: {type(diff)}", file=sys.stderr)
-        sys.exit(1)
+        print("❌ Unexpected diff JSON structure", file=sys.stderr)
 
     return endpoints
-
 
 # --------------------------------------------------------------------------- #
 # 4️⃣  Build the prompt
