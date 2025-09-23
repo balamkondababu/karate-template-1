@@ -25,7 +25,6 @@ from pathlib import Path
 from typing import List
 from datetime import datetime
 
-
 # --------------------------------------------------------------------------- #
 # 1️⃣  Argument parsing
 # --------------------------------------------------------------------------- #
@@ -68,18 +67,32 @@ def parse_added_endpoints(diff_json: str) -> List[dict]:
         print(f"❌ Invalid JSON in diff file: {e}", file=sys.stderr)
         sys.exit(1)
 
-    added = diff.get("added", {})
     endpoints: List[dict] = []
 
-    for path, methods in added.items():
-        for method, details in methods.items():
-            endpoints.append(
-                {
-                    "path": path,
-                    "method": method.upper(),
-                    "summary": details.get("summary") or details.get("description", ""),
-                }
-            )
+    if isinstance(diff, list):
+        # oasdiff list format
+        for item in diff:
+            if item.get("change") == "added":
+                path = item.get("path", "")
+                method = item.get("method", "GET").upper()
+                summary = item.get("summary") or item.get("description", "")
+                endpoints.append({"path": path, "method": method, "summary": summary})
+    elif isinstance(diff, dict):
+        # old dict format
+        added = diff.get("added", {})
+        for path, methods in added.items():
+            for method, details in methods.items():
+                endpoints.append(
+                    {
+                        "path": path,
+                        "method": method.upper(),
+                        "summary": details.get("summary") or details.get("description", ""),
+                    }
+                )
+    else:
+        print(f"❌ Unexpected diff JSON format: {type(diff)}", file=sys.stderr)
+        sys.exit(1)
+
     return endpoints
 
 
@@ -122,30 +135,27 @@ def build_prompt(spec: str, endpoints: List[dict]) -> str:
 
 
 # --------------------------------------------------------------------------- #
-# 5️⃣  Groq call (with safety)
+# 5️⃣  Groq call
 # --------------------------------------------------------------------------- #
 def call_groq(prompt: str, *, verbose: bool = False) -> str:
     _log("[Groq] Sending request…", verbose=verbose)
-
-    from groq import Groq
-    client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-
-    response = client.chat.completions.create(
-        model="llama-3.1-70b-versatile",
-        temperature=0.2,
-        max_tokens=1500,
-        messages=[
-            {"role": "system", "content": "You are a helpful assistant that writes Karate tests."},
-            {"role": "user", "content": prompt},
-        ],
-    )
-
-    _log("[Groq] Received response", verbose=verbose)
-
-    if not response.choices:
-        raise RuntimeError("Groq returned no completions")
-
-    return response.choices[0].message.content.strip()
+    try:
+        from groq import Groq
+        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        response = client.chat.completions.create(
+            model="llama-3.1-70b-versatile",
+            temperature=0.2,
+            max_tokens=1500,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that writes Karate tests."},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        _log("[Groq] Received response", verbose=verbose)
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"❌ Groq request failed: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 # --------------------------------------------------------------------------- #
@@ -154,65 +164,46 @@ def call_groq(prompt: str, *, verbose: bool = False) -> str:
 def main() -> None:
     args = parse_args()
 
-    # 1️⃣ Load spec & diff
+    # Ensure Groq key exists
+    if "GROQ_API_KEY" not in os.environ:
+        print("❌ GROQ_API_KEY environment variable is missing.", file=sys.stderr)
+        sys.exit(1)
+
+    # Load spec & diff
     spec = read_file(args.spec)
     diff_json = read_file(args.diff)
 
-    # 2️⃣ Determine added endpoints
+    # Determine added endpoints
     added_endpoints = parse_added_endpoints(diff_json)
     if not added_endpoints:
         print("✅ No new endpoints detected – nothing to generate.", file=sys.stderr)
         sys.exit(0)
 
-    # 3️⃣ Build the LLM prompt
+    # Build the prompt
     prompt = build_prompt(spec, added_endpoints)
     if not prompt:
         print("❌ Could not build prompt – aborting.", file=sys.stderr)
         sys.exit(1)
 
-    # 4️⃣ Ask Groq
-    try:
-        generated = call_groq(prompt, verbose=args.verbose)
-    except Exception as e:
-        print(f"❌ Groq request failed: {e}", file=sys.stderr)
-        sys.exit(1)
+    # Call Groq
+    generated = call_groq(prompt, verbose=args.verbose)
 
-    # 5️⃣ Add review warning header
-    warning_header = textwrap.dedent(
-        """\
-        # ⚠️ Auto-generated Karate tests
-        # Review required: test data may be incorrect.
-        # Generated at runtime – do not rely on results without validation.
-        """
-    )
-    final_output = f"{warning_header}\n\n{generated}"
-
-    # 6️⃣ Write the feature file (or dry-run)
+    # Write feature file
     output_path = Path(args.out)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    # Unique filename with timestamp
     timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     feature_file = output_path / f"auto_generated_{timestamp}.feature"
 
     if args.dry:
         print(f"\n=== Dry-run: would write to {feature_file} ===\n")
-        print(final_output)
+        print(generated)
     else:
-        feature_file.write_text(final_output, encoding="utf-8")
+        feature_file.write_text(generated, encoding="utf-8")
         print(f"✅ Generated Karate tests → {feature_file}")
+        print("\n--- Auto-generated feature content ---\n")
+        print(generated)
 
-    sys.exit(0)
 
-
-# --------------------------------------------------------------------------- #
 if __name__ == "__main__":
-    if "GROQ_API_KEY" not in os.environ:
-        print(
-            "❌ GROQ_API_KEY environment variable is missing.\n"
-            "     Add it as a secret in your GitHub Actions workflow.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
     main()
