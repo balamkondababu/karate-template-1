@@ -1,3 +1,5 @@
+
+
 #!/usr/bin/env python3
 """
 Generate Karate .feature files from an OpenAPI spec and an oasdiff JSON
@@ -19,7 +21,11 @@ import os
 import sys
 import json
 import yaml
+import textwrap
+from pathlib import Path
 from groq import Groq
+from typing import List
+from datetime import datetime
 
 # --------------------------------------------------------------------------- #
 # Argument parsing
@@ -171,7 +177,7 @@ def main():
     # Unique filename with timestamp
     timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     os.makedirs(args.out, exist_ok=True)
-    out_file = os.path.join(args.out, f"auto_generated_{timestamp}.feature")
+    out_file = os.path.join(args.out, “auto_generated_{timestamp}.feature")
     with open(out_file, "w") as f:
         f.write(karate_tests)
     print(f"\n✅ Karate tests written to {out_file}")
