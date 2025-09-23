@@ -15,8 +15,7 @@ jobs:
 
       - name: Install oasdiff
         run: |
-          curl -sSL https://github.com/Tufin/oasdiff/releases/latest/download/oasdiff_linux_amd64.tar.gz \
-            | tar -xz -C /usr/local/bin
+          curl -L https://github.com/Tufin/oasdiff/releases/latest/download/oasdiff-linux-amd64 -o /usr/local/bin/oasdiff
           chmod +x /usr/local/bin/oasdiff
           oasdiff version
 
