@@ -24,7 +24,6 @@ import textwrap
 from pathlib import Path
 from typing import List
 from datetime import datetime
-from groq.exceptions import GroqError
 
 import requests
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -128,19 +127,12 @@ def build_prompt(spec: str, endpoints: List[dict]) -> str:
 # --------------------------------------------------------------------------- #
 # 5️⃣  Groq call (with retry)
 # --------------------------------------------------------------------------- #
-@retry(
-    reraise=True,
-    stop=stop_after_attempt(5),
-    wait=wait_exponential(multiplier=1, min=4, max=60),
-    retry=retry_if_exception_type((requests.exceptions.RequestException, GroqError)),
-)
+
 def call_groq(prompt: str, *, verbose: bool = False) -> str:
     _log("[Groq] Sending request…", verbose=verbose)
 
     from groq import Groq
     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-
-    try:
         response = client.chat.completions.create(
             model="llama-3.1-70b-versatile",  # pick your preferred Groq model
             temperature=0.2,
@@ -152,8 +144,6 @@ def call_groq(prompt: str, *, verbose: bool = False) -> str:
         )
         _log("[Groq] Received response", verbose=verbose)
         return response.choices[0].message.content.strip()
-    except Exception as e:
-        raise GroqError(f"Groq request failed: {e}") from e
 
 
 # --------------------------------------------------------------------------- #
@@ -181,8 +171,8 @@ def main() -> None:
     # 4️⃣ Ask Groq
     try:
         generated = call_groq(prompt, verbose=args.verbose)
-    except GroqError as exc:
-        print(f"❌ Groq request failed: {exc}", file=sys.stderr)
+    except Exception as e:
+        print(f"❌ Groq request failed: {e}", file=sys.stderr)
         sys.exit(1)
 
     # 5️⃣ Write the feature file (or dry-run)
