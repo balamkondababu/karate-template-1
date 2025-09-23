@@ -21,7 +21,7 @@ Generate Karate .feature tests with basic validations.
 """
 
 resp = openai.ChatCompletion.create(
-    model="gpt-4",
+    model="gpt-3.5-turbo",
     messages=[{"role": "user", "content": prompt}]
 )
 
