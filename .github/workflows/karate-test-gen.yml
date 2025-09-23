@@ -1,0 +1,59 @@
+name: Karate Test Generation PoC
+
+on:
+  pull_request:
+    paths:
+      - "api/openapi.yaml"
+      - "api/swagger.json"
+
+jobs:
+  karate-test-gen:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install swagger-diff (oasdiff)
+        run: |
+          curl -L https://github.com/Tufin/oasdiff/releases/latest/download/oasdiff-linux-amd64 -o oasdiff
+          chmod +x oasdiff
+          sudo mv oasdiff /usr/local/bin/
+
+      - name: Detect API changes
+        run: |
+          git fetch origin main
+          oasdiff breaking ./api/openapi.yaml origin/main:api/openapi.yaml > api_diff.json || true
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate Karate tests with LLM
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python scripts/gen_karate_tests.py \
+            --spec ./api/openapi.yaml \
+            --diff ./api_diff.json \
+            --out ./tests/auto_generated
+
+      - name: Commit auto-generated tests
+        run: |
+          git config user.name "karate-bot"
+          git config user.email "karate-bot@users.noreply.github.com"
+          git add tests/auto_generated/
+          git commit -m "chore: auto-generated Karate tests for new APIs" || echo "No changes"
+          git push
+
+      - name: PR Comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          message: |
+            🧪 Karate tests were auto-generated for newly added APIs.
+            ✅ Please review `tests/auto_generated/auto_generated.feature`
+            before merging.
