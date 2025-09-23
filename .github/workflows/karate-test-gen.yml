@@ -15,23 +15,17 @@ jobs:
 
       - name: Install oasdiff
         run: |
-          # Latest release binary URL (Linux)
+          echo "Installing oasdiff..."
           URL="https://github.com/oasdiff/oasdiff/releases/download/v1.11.7/oasdiff_1.11.7_linux_amd64.tar.gz"
-          
           echo "Downloading oasdiff from $URL"
-
-          # Download tar.gz
+          
           curl -L "$URL" -o oasdiff.tar.gz
-      
-          # Extract the binary
           tar -xzf oasdiff.tar.gz
-      
-          # Move to /usr/local/bin and make executable
           sudo mv oasdiff /usr/local/bin/oasdiff
           sudo chmod +x /usr/local/bin/oasdiff
-      
-          # Verify installation
-          oasdiff version
+          
+          # Verify install
+          oasdiff --help
 
       - name: Detect API changes
         run: |
