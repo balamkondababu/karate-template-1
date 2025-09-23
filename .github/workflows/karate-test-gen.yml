@@ -37,7 +37,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           python scripts/gen_karate_tests.py \
-            --spec ./api/openapi.yaml \
+            --spec ./openapi/base.yml \
             --diff ./api_diff.json \
             --out ./tests/auto_generated
 
