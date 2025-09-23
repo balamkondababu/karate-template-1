@@ -30,9 +30,10 @@ jobs:
       - name: Fetch main branch OpenAPI spec
         run: |
             git fetch origin main
+            git ls-tree origin/main openapi/base.yml
             mkdir -p temp_main_openapi
             git show origin/main:openapi/base.yml > temp_main_openapi/base.yml
-            
+
       - name: Detect API changes
         run: |
           git fetch origin main
