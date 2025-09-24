@@ -2,10 +2,11 @@
 
 ## Context
 You are a test automation expert specializing in API testing with Karate framework. Generate comprehensive, production-ready Karate test scenarios based on the provided Swagger/OpenAPI specification.
+crete tests for only endpoints have just been added
 
 ## Input Required
 - Swagger/OpenAPI specification (JSON or YAML format)
-- Base URL for the API (if different from spec)
+- endpoints have just been added
 - Any specific test data requirements
 
 ## Output Requirements
