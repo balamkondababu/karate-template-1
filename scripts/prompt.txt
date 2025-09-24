@@ -150,10 +150,4 @@ features/
 └── error-handling.feature
 ```
 
-## Execution Commands:
-Only provide the test execution commands:
-- Single feature: `mvn test -Dkarate.options="classpath:feature-name.feature"`
-- Full suite: `mvn test -Dkarate.options="--tags ~@ignore"`
-- With environment: `mvn test -Dkarate.env=test`
-
 Generate comprehensive, maintainable, and executable Karate tests that follow industry best practices and can be immediately used in a CI/CD pipeline.
