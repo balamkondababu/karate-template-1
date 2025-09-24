@@ -55,7 +55,7 @@ jobs:
           python scripts/gen_karate_tests_groq.py \
             --spec ./openapi/base.yml \
             --diff ./api_diff.json \
-            --out ./tests/auto_generated
+            --out ./tests/auto_generated \
             --prompt-file ./scripts/prompt.txt
 
       # 8️⃣ Commit and push back to PR branch
