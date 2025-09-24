@@ -38,6 +38,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--out", required=True, help="Output directory for the .feature file")
     parser.add_argument("--dry", action="store_true", help="Do not write files – just print what would be written")
     parser.add_argument("--verbose", action="store_true", help="Print debug information")
+    parser.add_argument(
+    "--prompt-file",
+    help="Path to a saved prompt base text file to prepend before spec and endpoints"
+    )
     return parser.parse_args()
 
 
@@ -86,7 +90,7 @@ def parse_added_endpoints(diff_json: str) -> list:
 # --------------------------------------------------------------------------- #
 # 4️⃣  Build the prompt
 # --------------------------------------------------------------------------- #
-def build_prompt(spec_str: str, endpoints: List[dict]) -> str:
+def build_prompt(spec_str: str, endpoints: List[dict], base_prompt: str = "") -> str:
     if not endpoints:
         return ""
 
@@ -94,9 +98,8 @@ def build_prompt(spec_str: str, endpoints: List[dict]) -> str:
         f"- `{ep['method']} {ep['path']}`: {ep['summary']}" for ep in endpoints
     )
 
-    prompt = textwrap.dedent(
+    extra_text = textwrap.dedent(
         f"""
-        You are an expert in Karate API testing.
         Here is the full OpenAPI specification of the service:
 
         ```
@@ -106,18 +109,11 @@ def build_prompt(spec_str: str, endpoints: List[dict]) -> str:
         The following endpoints have just been added:
 
         {endpoint_list}
-
-        Generate a single Karate `.feature` file that contains:
-        • A `Feature:` line with a concise title.
-        • One `Scenario:` per new endpoint.
-        • The HTTP method, URL and a placeholder for authentication.
-        • A 200-299 status-code assertion.
-        • Basic body validation – match the top-level keys defined in the response schema.
-        • Karate syntax: `* def`, `* match`, etc.
-
-        Output only the contents of the `.feature` file – no surrounding comments.
         """
     )
+
+    prompt = f"{base_prompt}\n{extra_text}"
+
     return prompt.strip()
 
 
@@ -166,7 +162,7 @@ def main() -> None:
         sys.exit(0)
 
     # Build LLM prompt
-    prompt = build_prompt(spec_str, added_endpoints)
+    prompt = build_prompt(spec_str, added_endpoints, base_prompt)
     if not prompt:
         print("❌ Could not build prompt – aborting.", file=sys.stderr)
         sys.exit(1)
@@ -205,5 +201,7 @@ if __name__ == "__main__":
             file=sys.stderr,
         )
         sys.exit(1)
-
+    base_prompt = ""
+    if args.prompt_file:
+        base_prompt = read_file(args.prompt_file)
     main()
