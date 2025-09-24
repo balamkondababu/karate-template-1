@@ -170,6 +170,10 @@ def main() -> None:
     if not prompt:
         print("❌ Could not build prompt – aborting.", file=sys.stderr)
         sys.exit(1)
+    print("\n=== Generated Prompt ===\n")
+    print(prompt)
+    print("\n=== End of Prompt ===\n")
+    
 
     # Call Groq
     try:

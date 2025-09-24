@@ -1,0 +1,159 @@
+# Generate Karate API Tests from Swagger/OpenAPI Specification
+
+## Context
+You are a test automation expert specializing in API testing with Karate framework. Generate comprehensive, production-ready Karate test scenarios based on the provided Swagger/OpenAPI specification.
+
+## Input Required
+- Swagger/OpenAPI specification (JSON or YAML format)
+- Base URL for the API (if different from spec)
+- Any specific test data requirements
+
+## Output Requirements
+
+### 1. Update Existing karate-config.js
+Add only the necessary test data variables to the existing configuration:
+- New test data constants for the API endpoints
+- Additional helper functions if required
+- Do not regenerate the entire config file
+
+### 2. Create Feature Files
+Generate separate `.feature` files for each logical API grouping with:
+
+#### Structure:
+```gherkin
+Feature: [Clear descriptive name]
+
+Background:
+  * url baseUrl
+  * configure headers = commonHeaders
+  * def testData = { /* relevant test data */ }
+
+Scenario: [Descriptive scenario name]
+  Given path '[endpoint]'
+  And header [required-header] = '[value]'
+  And request [payload]
+  When method [HTTP-METHOD]
+  Then status [expected-status]
+  And match response == [validation]
+```
+
+### 3. Test Coverage Requirements
+
+For each endpoint, include:
+
+#### Happy Path Tests:
+- Valid requests with all required parameters
+- Response status and schema validation
+- Header validation where applicable
+
+#### Negative Test Cases:
+- Missing required parameters/headers
+- Invalid data types and formats
+- Boundary value testing
+- Authentication/authorization failures
+- Malformed requests
+
+#### Data-Driven Tests:
+- Use `Scenario Outline` with `Examples` tables
+- Test multiple parameter combinations
+- Validate different response scenarios
+
+### 4. Validation Patterns
+
+#### Response Validation:
+```gherkin
+Then status 200
+And match response contains { field: '#string' }
+And match response.array == '#[]'
+And match each response.items contains { id: '#number' }
+And match response.timestamp == '#? _ > 0'
+```
+
+#### Schema Validation:
+- Use exact matching for critical fields
+- Use type matching (#string, #number, #boolean) for flexible validation
+- Validate arrays and nested objects appropriately
+
+### 5. Error Handling
+For each error status code in the spec:
+- Test the specific error condition
+- Validate error response structure
+- Include meaningful scenario descriptions
+
+### 6. Advanced Features
+
+#### Authentication:
+- Handle different auth mechanisms (Bearer, API Key, Basic)
+- Test auth failures and token expiry scenarios
+
+#### File Uploads:
+```gherkin
+And multipart file upload = { read: 'test-file.pdf', filename: 'test.pdf', contentType: 'application/pdf' }
+```
+
+#### Dynamic Data:
+- Generate UUIDs, timestamps, random values
+- Use JavaScript functions for complex data generation
+
+### 7. Organization Guidelines
+
+#### File Naming:
+- Use descriptive names: `user-management.feature`, `payment-processing.feature`
+- Group related endpoints logically
+
+#### Scenario Naming:
+- Be descriptive: "Create user with valid data - returns 201"
+- Include expected behavior: "Update user with invalid ID - returns 404"
+
+#### Comments:
+- Add comments for complex validations
+- Explain business logic where needed
+
+### 8. Performance Considerations
+- Include response time assertions where appropriate:
+```gherkin
+And match responseTime < 2000
+```
+
+## Specific Requirements for Your Generation:
+
+1. **Extract all endpoints** from the provided specification
+2. **Identify required vs optional parameters** for each endpoint
+3. **Generate realistic test data** based on schema definitions
+4. **Create both positive and negative test scenarios**
+5. **Include proper HTTP status code validation** for each endpoint
+6. **Add schema validation** using Karate's match syntax
+7. **Handle authentication headers** as specified in the API
+8. **Create reusable background steps** for common operations
+9. **Use data-driven testing** for endpoints with multiple parameter combinations
+10. **Include edge cases** like empty strings, null values, boundary numbers
+
+## Config Data Updates Needed:
+Only provide the additional test data variables that should be added to the existing karate-config.js:
+
+```javascript
+// Add these to your existing config object
+testData: {
+  // New endpoints test data here
+  validMemberUuid: 'sample-uuid',
+  // ... other required test constants
+}
+```
+
+## Example Output Structure:
+```
+features/
+├── health-check.feature
+├── user-management.feature
+├── payment-processing.feature
+├── authentication.feature
+└── error-handling.feature
+```
+
+## Execution Commands:
+Only provide the test execution commands:
+- Single feature: `mvn test -Dkarate.options="classpath:feature-name.feature"`
+- Full suite: `mvn test -Dkarate.options="--tags ~@ignore"`
+- With environment: `mvn test -Dkarate.env=test`
+
+Generate comprehensive, maintainable, and executable Karate tests that follow industry best practices and can be immediately used in a CI/CD pipeline.
