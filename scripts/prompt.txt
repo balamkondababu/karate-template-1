@@ -54,7 +54,7 @@ For each endpoint, include:
 - Authentication/authorization failures
 - Malformed requests
 
-#### Data-Driven Tests:
+#### Data-Driven Tests (if applicables):
 - Use `Scenario Outline` with `Examples` tables
 - Test multiple parameter combinations
 - Validate different response scenarios
@@ -82,10 +82,6 @@ For each error status code in the spec:
 - Include meaningful scenario descriptions
 
 ### 6. Advanced Features
-
-#### Authentication:
-- Handle different auth mechanisms (Bearer, API Key, Basic)
-- Test auth failures and token expiry scenarios
 
 #### File Uploads:
 ```gherkin
@@ -115,6 +111,7 @@ And multipart file upload = { read: 'test-file.pdf', filename: 'test.pdf', conte
 
 1. **Extract all endpoints** from the provided specification
 2. **Identify required vs optional parameters** for each endpoint
+2. **Identify query paraments** for each endpoint
 3. **Generate realistic test data** based on schema definitions
 4. **Create both positive and negative test scenarios**
 5. **Include proper HTTP status code validation** for each endpoint
@@ -123,18 +120,6 @@ And multipart file upload = { read: 'test-file.pdf', filename: 'test.pdf', conte
 8. **Create reusable background steps** for common operations
 9. **Use data-driven testing** for endpoints with multiple parameter combinations
 10. **Include edge cases** like empty strings, null values, boundary numbers
-
-## Config Data Updates Needed:
-Only provide the additional test data variables that should be added to the existing karate-config.js:
-
-```javascript
-// Add these to your existing config object
-testData: {
-  // New endpoints test data here
-  validMemberUuid: 'sample-uuid',
-  // ... other required test constants
-}
-```
 
 ## Example Output Structure:
 ```
