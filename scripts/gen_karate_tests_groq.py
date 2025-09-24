@@ -130,7 +130,7 @@ def call_groq(prompt: str, *, verbose: bool = False) -> str:
     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
     response = client.chat.completions.create(
-        model="llama-3.1-70b-versatile",
+        model="llama-3.2-70b-versatile",
         temperature=0.2,
         max_tokens=1500,
         messages=[
