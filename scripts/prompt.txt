@@ -146,4 +146,5 @@ features/
 ```
 
 Output only the Karate `.feature` file content — no extra explanations.
+Do NOT wrap the output in markdown fences 
 Generate comprehensive, maintainable, and executable Karate tests that follow industry best practices and can be immediately used in a CI/CD pipeline.
