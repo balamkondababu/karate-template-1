@@ -10,67 +10,72 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout PR branch
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0 
+          fetch-depth: 0   # Required to fetch full history for git diff
 
-      - name: Install oasdiff
+      # 2️⃣ Install oasdiff
+      - name: Install swagger-diff (oasdiff)
         run: |
-          echo "Installing oasdiff..."
-          URL="https://github.com/oasdiff/oasdiff/releases/download/v1.11.7/oasdiff_1.11.7_linux_amd64.tar.gz"
-          echo "Downloading oasdiff from $URL"
-          
-          curl -L "$URL" -o oasdiff.tar.gz
+          curl -L https://github.com/oasdiff/oasdiff/releases/download/v1.11.7/oasdiff_1.11.7_linux_amd64.tar.gz -o oasdiff.tar.gz
           tar -xzf oasdiff.tar.gz
           sudo mv oasdiff /usr/local/bin/oasdiff
           sudo chmod +x /usr/local/bin/oasdiff
-          
-          # Verify install
           oasdiff --help
 
+      # 3️⃣ Fetch base branch for diff
       - name: Fetch main branch OpenAPI spec
         run: |
-            git fetch origin main
-            git ls-tree origin/main openapi/base.yml
-            mkdir -p temp_main_openapi
-            git show origin/main:openapi/base.yml > temp_main_openapi/base.yml
+          git fetch origin main
+          mkdir -p temp_main_openapi
+          git show origin/main:openapi/base.yml > temp_main_openapi/base.yml
 
+      # 4️⃣ Generate API diff
       - name: Detect API changes
         run: |
-          git fetch origin main
           oasdiff breaking --format json ./openapi/base.yml temp_main_openapi/base.yml > api_diff.json || true
 
+      # 5️⃣ Setup Python
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
 
+      # 6️⃣ Install dependencies
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Generate Karate tests with Groq
+      # 7️⃣ Generate Karate tests using Groq
+      - name: Generate Karate tests
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           python scripts/gen_karate_tests_groq.py \
             --spec ./openapi/base.yml \
             --diff ./api_diff.json \
-            --out ./tests/auto_generated
+            --out ./tests/auto_generated \
+            --prompt-file ./scripts/prompt.txt
 
+      # 8️⃣ Commit and push back to PR branch
       - name: Commit auto-generated tests
         run: |
           git config user.name "karate-bot"
           git config user.email "karate-bot@users.noreply.github.com"
-          git add tests/auto_generated/
-          git commit -m "chore: auto-generated Karate tests for new APIs" || echo "No changes"
-          git push origin HEAD:${{ github.head_ref }}
 
+          # Checkout PR branch
+          git checkout ${{ github.head_ref }}
+
+          git add tests/auto_generated/
+          git commit -m "chore: auto-generated Karate tests for new APIs" || echo "No changes to commit"
+          git push origin ${{ github.head_ref }}
+
+      # 9️⃣ Comment on PR
       - name: PR Comment
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           message: |
-            🧪 Karate tests were auto-generated for newly added APIs.
-            ⚠️ Please review files in `tests/auto_generated/` before merging.
-            🔍 Auto-generated tests may need data or validation updates.
-            ✅ Workflow also attempted to run the tests — check reports in `reports/`.
+            🧪 Auto-generated Karate tests have been created for new APIs.
+            ⚠️ These tests should be reviewed and updated for correct data and response validation.
+            ✅ Review `tests/auto_generated/` before merging.
