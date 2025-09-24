@@ -144,6 +144,10 @@ def call_groq(prompt: str, *, verbose: bool = False) -> str:
 def main() -> None:
     args = parse_args()
 
+    base_prompt = ""
+    if args.prompt_file:
+        base_prompt = read_file(args.prompt_file)
+
     # Load OpenAPI spec
     spec_str = read_file(args.spec)
     try:
@@ -201,7 +205,4 @@ if __name__ == "__main__":
             file=sys.stderr,
         )
         sys.exit(1)
-    base_prompt = ""
-    if args.prompt_file:
-        base_prompt = read_file(args.prompt_file)
     main()
