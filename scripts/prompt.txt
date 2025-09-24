@@ -109,11 +109,6 @@ And multipart file upload = { read: 'test-file.pdf', filename: 'test.pdf', conte
 - Add comments for complex validations
 - Explain business logic where needed
 
-### 8. Performance Considerations
-- Include response time assertions where appropriate:
-```gherkin
-And match responseTime < 2000
-```
 
 ## Specific Requirements for Your Generation:
 
