@@ -87,4 +87,65 @@ paths:
                   id:
                     type: integer
                   name:
-                    type: string                    
+                    type: string
+  /applications:
+    get:
+      summary: Get list of users
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    aid:
+                      type: integer
+                    aname:
+                      type: string
+    post:
+      summary: Create a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                aname:
+                  type: string
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  aid:
+                    type: integer
+                  aname:
+                    type: string
+  /applications/{aid}:
+      get:
+        summary: Get user by ID
+        parameters:
+          - name: aid
+            in: path
+            required: true
+            schema:
+              type: integer
+        responses:
+          '200':
+            description: Successful response
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    aid:
+                      type: integer
+                    name:
+                      type: string                                      
