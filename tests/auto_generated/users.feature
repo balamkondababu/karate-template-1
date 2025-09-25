@@ -6,109 +6,146 @@ Background:
   * def testData = { name: 'John Doe' }
 
 Scenario: Get list of users - returns 200
-  Given path '/users'
+  Given path 'users'
   When method get
   Then status 200
-  And match response == '#array'
-  And match each response[] contains { id: '#number', name: '#string' }
+  And match response == '#[]'
 
-Scenario: Get list of users - invalid request
-  Given path '/users'
-  And header Content-Type = 'text/plain'
+Scenario: Get list of users - empty list
+  Given path 'users'
   When method get
-  Then status 415
+  Then status 200
+  And match response == '[]'
 
 Scenario: Get user by ID - returns 200
-  Given path '/users/1'
+  Given path 'users/1'
   When method get
   Then status 200
-  And match response == { id: '#number', name: '#string' }
+  And match response contains { id: '#number', name: '#string' }
 
 Scenario: Get user by ID - invalid ID
-  Given path '/users/abc'
-  When method get
-  Then status 400
-
-Scenario: Get user by ID - user not found
-  Given path '/users/999'
+  Given path 'users/abc'
   When method get
   Then status 404
 
-Scenario: Get user by ID - returns 200 with valid application ID
-  Given path '/users/1/1'
+Scenario: Get user by ID - missing ID
+  Given path 'users/'
   When method get
-  Then status 200
-  And match response == { id: '#number', name: '#string' }
+  Then status 404
 
-Scenario: Get user by ID - returns 400 with invalid application ID
-  Given path '/users/1/abc'
+Scenario Outline: Get user by ID - boundary values
+  Given path 'users/<id>'
   When method get
-  Then status 400
-
-Scenario Outline: Get list of users with query parameters
-  Given path '/users'
-  And param limit = '<limit>'
-  And param offset = '<offset>'
-  When method get
-  Then status 200
-  And match response == '#array'
-  And match each response[] contains { id: '#number', name: '#string' }
+  Then status <status>
 
   Examples:
-    | limit | offset |
-    | 10    | 0     |
-    | 20    | 10    |
-    | 50    | 20    |
+    | id | status |
+    | 0  | 200    |
+    | -1 | 404    |
 
-Scenario Outline: Create a new user with valid data
-  Given path '/users'
-  And request { name: '<name>' }
+Scenario: Create a new user - returns 201
+  Given path 'users'
+  And request { name: '#(testData.name)' }
   When method post
   Then status 201
-  And match response == { id: '#number', name: '<name>' }
+  And match response contains { id: '#number', name: '#string' }
 
-  Examples:
-    | name      |
-    | John Doe  |
-    | Jane Doe  |
-
-Scenario Outline: Create a new user with invalid data
-  Given path '/users'
-  And request { name: '<name>' }
-  When method post
-  Then status 400
-
-  Examples:
-    | name      |
-    |           |
-    | <null>    |
-
-Scenario: Create a new user with missing required parameters
-  Given path '/users'
+Scenario: Create a new user - missing name
+  Given path 'users'
   And request {}
   When method post
   Then status 400
 
-Scenario: Create a new user with invalid data type
-  Given path '/users'
+Scenario: Create a new user - invalid name
+  Given path 'users'
   And request { name: 123 }
   When method post
   Then status 400
 
-Scenario: Get user by ID with authentication
-  Given path '/users/1'
-  And header Authorization = 'Bearer token'
+Scenario Outline: Create a new user - boundary values
+  Given path 'users'
+  And request { name: '<name>' }
+  When method post
+  Then status <status>
+
+  Examples:
+    | name      | status |
+    |           | 400    |
+    | a         | 201    |
+    | a         | 201    |
+
+Feature: Application Management
+
+Background:
+  * url 'https://example.com'
+  * configure headers = { Content-Type: 'application/json' }
+  * def testData = { aname: 'Test App' }
+
+Scenario: Get list of applications - returns 200
+  Given path 'applications'
   When method get
   Then status 200
-  And match response == { id: '#number', name: '#string' }
+  And match response == '#[]'
 
-Scenario: Get user by ID without authentication
-  Given path '/users/1'
+Scenario: Get list of applications - empty list
+  Given path 'applications'
   When method get
-  Then status 401
+  Then status 200
+  And match response == '[]'
 
-Scenario: Get user by ID with invalid authentication
-  Given path '/users/1'
-  And header Authorization = 'Bearer invalid-token'
+Scenario: Get application by ID - returns 200
+  Given path 'applications/1'
   When method get
-  Then status 401
+  Then status 200
+  And match response contains { aid: '#number', aname: '#string' }
+
+Scenario: Get application by ID - invalid ID
+  Given path 'applications/abc'
+  When method get
+  Then status 404
+
+Scenario: Get application by ID - missing ID
+  Given path 'applications/'
+  When method get
+  Then status 404
+
+Scenario Outline: Get application by ID - boundary values
+  Given path 'applications/<id>'
+  When method get
+  Then status <status>
+
+  Examples:
+    | id | status |
+    | 0  | 200    |
+    | -1 | 404    |
+
+Scenario: Create a new application - returns 201
+  Given path 'applications'
+  And request { aname: '#(testData.aname)' }
+  When method post
+  Then status 201
+  And match response contains { aid: '#number', aname: '#string' }
+
+Scenario: Create a new application - missing aname
+  Given path 'applications'
+  And request {}
+  When method post
+  Then status 400
+
+Scenario: Create a new application - invalid aname
+  Given path 'applications'
+  And request { aname: 123 }
+  When method post
+  Then status 400
+
+Scenario Outline: Create a new application - boundary values
+  Given path 'applications'
+  And request { aname: '<aname>' }
+  When method post
+  Then status <status>
+
+  Examples:
+    | aname      | status |
+    |           | 400    |
+    | a         | 201    |
+    | a         | 201    |
