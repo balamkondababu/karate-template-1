@@ -11,11 +11,7 @@ crete tests for only endpoints have just been added
 
 ## Output Requirements
 
-### 1. Update Existing karate-config.js
-Add only the necessary test data variables to the existing configuration:
-- New test data constants for the API endpoints
-- Additional helper functions if required
-- Do not regenerate the entire config file
+### 1. Add all the necessary test data variables in the background - for New test data constants for the API endpoints
 
 ### 2. Create Feature Files
 Generate separate `.feature` files for each logical API grouping with:
