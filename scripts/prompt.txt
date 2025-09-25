@@ -2,19 +2,16 @@
 
 ## Context
 You are a test automation expert specializing in API testing with Karate framework. Generate comprehensive, production-ready Karate test scenarios based on the provided Swagger/OpenAPI specification.
+crete tests for only endpoints have just been added
 
 ## Input Required
 - Swagger/OpenAPI specification (JSON or YAML format)
-- Base URL for the API (if different from spec)
+- endpoints have just been added
 - Any specific test data requirements
 
 ## Output Requirements
 
-### 1. Update Existing karate-config.js
-Add only the necessary test data variables to the existing configuration:
-- New test data constants for the API endpoints
-- Additional helper functions if required
-- Do not regenerate the entire config file
+### 1. Add all the necessary test data variables in the background - for New test data constants for the API endpoints
 
 ### 2. Create Feature Files
 Generate separate `.feature` files for each logical API grouping with:
@@ -53,7 +50,7 @@ For each endpoint, include:
 - Authentication/authorization failures
 - Malformed requests
 
-#### Data-Driven Tests:
+#### Data-Driven Tests (if applicables):
 - Use `Scenario Outline` with `Examples` tables
 - Test multiple parameter combinations
 - Validate different response scenarios
@@ -82,10 +79,6 @@ For each error status code in the spec:
 
 ### 6. Advanced Features
 
-#### Authentication:
-- Handle different auth mechanisms (Bearer, API Key, Basic)
-- Test auth failures and token expiry scenarios
-
 #### File Uploads:
 ```gherkin
 And multipart file upload = { read: 'test-file.pdf', filename: 'test.pdf', contentType: 'application/pdf' }
@@ -109,16 +102,12 @@ And multipart file upload = { read: 'test-file.pdf', filename: 'test.pdf', conte
 - Add comments for complex validations
 - Explain business logic where needed
 
-### 8. Performance Considerations
-- Include response time assertions where appropriate:
-```gherkin
-And match responseTime < 2000
-```
 
 ## Specific Requirements for Your Generation:
 
 1. **Extract all endpoints** from the provided specification
 2. **Identify required vs optional parameters** for each endpoint
+2. **Identify query paraments** for each endpoint
 3. **Generate realistic test data** based on schema definitions
 4. **Create both positive and negative test scenarios**
 5. **Include proper HTTP status code validation** for each endpoint
@@ -127,18 +116,6 @@ And match responseTime < 2000
 8. **Create reusable background steps** for common operations
 9. **Use data-driven testing** for endpoints with multiple parameter combinations
 10. **Include edge cases** like empty strings, null values, boundary numbers
-
-## Config Data Updates Needed:
-Only provide the additional test data variables that should be added to the existing karate-config.js:
-
-```javascript
-// Add these to your existing config object
-testData: {
-  // New endpoints test data here
-  validMemberUuid: 'sample-uuid',
-  // ... other required test constants
-}
-```
 
 ## Example Output Structure:
 ```
@@ -150,10 +127,6 @@ features/
 └── error-handling.feature
 ```
 
-## Execution Commands:
-Only provide the test execution commands:
-- Single feature: `mvn test -Dkarate.options="classpath:feature-name.feature"`
-- Full suite: `mvn test -Dkarate.options="--tags ~@ignore"`
-- With environment: `mvn test -Dkarate.env=test`
-
+Output only the Karate `.feature` file content — no extra explanations.
+Do NOT wrap the output in markdown fences 
 Generate comprehensive, maintainable, and executable Karate tests that follow industry best practices and can be immediately used in a CI/CD pipeline.

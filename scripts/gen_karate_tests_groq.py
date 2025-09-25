@@ -7,8 +7,8 @@ Usage:
     python scripts/gen_karate_tests_groq.py \
         --spec ./openapi/base.yml \
         --diff ./api_diff.json \
-        --out  ./tests/auto_generated \
-        [--dry] [--verbose]
+        --out ./tests/auto_generated \
+        [--dry] [--verbose] [--prompt-file ./scripts/prompt.txt]
 
 Environment:
     GROQ_API_KEY   - your Groq API key
@@ -21,13 +21,13 @@ import os
 import sys
 import textwrap
 from pathlib import Path
-from typing import List
+from typing import List, Dict
 from datetime import datetime
 import yaml
 
 
 # --------------------------------------------------------------------------- #
-# 1️⃣  Argument parsing
+# Argument parsing
 # --------------------------------------------------------------------------- #
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -39,14 +39,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dry", action="store_true", help="Do not write files – just print what would be written")
     parser.add_argument("--verbose", action="store_true", help="Print debug information")
     parser.add_argument(
-    "--prompt-file",
-    help="Path to a saved prompt base text file to prepend before spec and endpoints"
+        "--prompt-file",
+        help="Path to a saved prompt base text file to prepend before spec and endpoints"
     )
     return parser.parse_args()
 
 
 # --------------------------------------------------------------------------- #
-# 2️⃣  Utility helpers
+# Utility helpers
 # --------------------------------------------------------------------------- #
 def _log(msg: str, *, verbose: bool) -> None:
     if verbose:
@@ -62,38 +62,57 @@ def read_file(path: str) -> str:
 
 
 # --------------------------------------------------------------------------- #
-# 3️⃣  Parse oasdiff output
+# Parse oasdiff output
 # --------------------------------------------------------------------------- #
-def parse_added_endpoints(diff_json: str) -> list:
+def parse_added_endpoints(diff_json: str, spec_yaml: dict) -> list:
     diff = json.loads(diff_json)
-
-    # Handle old style
     if isinstance(diff, dict):
         added_paths = diff.get("added") or diff.get("extensions", {}).get("added", [])
-    # Handle unexpected list structure
     elif isinstance(diff, list):
         added_paths = diff
     else:
         added_paths = []
 
     endpoints = []
-    for path in added_paths:
+    for path_info in added_paths:
+        path_str = path_info if isinstance(path_info, str) else path_info.get("path", "")
+        method = "GET"
+        summary = ""
+
+        if isinstance(path_info, dict):
+            method = path_info.get("method", "GET")
+
+        if path_str in spec_yaml.get("paths", {}):
+            path_methods = spec_yaml["paths"][path_str]
+            if method.lower() in path_methods:
+                summary = path_methods[method.lower()].get("summary", "")
+
         endpoints.append({
-            "path": path,
-            "method": "GET",  # default if method not known
-            "summary": ""
+            "path": path_str,
+            "method": method,
+            "summary": summary
         })
+
     return endpoints
 
 
+# --------------------------------------------------------------------------- #
+# Group endpoints by base path
+# --------------------------------------------------------------------------- #
+def group_endpoints(endpoints: List[dict]) -> Dict[str, List[dict]]:
+    grouped = {}
+    for ep in endpoints:
+        base_path = ep["path"].split("{")[0].rstrip("/")
+        if base_path not in grouped:
+            grouped[base_path] = []
+        grouped[base_path].append(ep)
+    return grouped
+
 
 # --------------------------------------------------------------------------- #
-# 4️⃣  Build the prompt
+# Build the prompt
 # --------------------------------------------------------------------------- #
 def build_prompt(spec_str: str, endpoints: List[dict], base_prompt: str = "") -> str:
-    if not endpoints:
-        return ""
-
     endpoint_list = "\n".join(
         f"- `{ep['method']} {ep['path']}`: {ep['summary']}" for ep in endpoints
     )
@@ -112,13 +131,11 @@ def build_prompt(spec_str: str, endpoints: List[dict], base_prompt: str = "") ->
         """
     )
 
-    prompt = f"{base_prompt}\n{extra_text}"
-
-    return prompt.strip()
+    return f"{base_prompt}\n{extra_text}".strip()
 
 
 # --------------------------------------------------------------------------- #
-# 5️⃣  Groq call
+# Call Groq API
 # --------------------------------------------------------------------------- #
 def call_groq(prompt: str, *, verbose: bool = False) -> str:
     _log("[Groq] Sending request…", verbose=verbose)
@@ -128,7 +145,7 @@ def call_groq(prompt: str, *, verbose: bool = False) -> str:
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         temperature=0.2,
-        max_tokens=1500,
+        max_tokens=2000,
         messages=[
             {"role": "system", "content": "You are a helpful assistant that writes Karate tests."},
             {"role": "user", "content": prompt},
@@ -139,7 +156,7 @@ def call_groq(prompt: str, *, verbose: bool = False) -> str:
 
 
 # --------------------------------------------------------------------------- #
-# 6️⃣  Main orchestration
+# Main orchestration
 # --------------------------------------------------------------------------- #
 def main() -> None:
     args = parse_args()
@@ -148,7 +165,6 @@ def main() -> None:
     if args.prompt_file:
         base_prompt = read_file(args.prompt_file)
 
-    # Load OpenAPI spec
     spec_str = read_file(args.spec)
     try:
         spec_yaml = yaml.safe_load(spec_str)
@@ -156,44 +172,42 @@ def main() -> None:
         print(f"❌ Failed to parse YAML: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Load diff JSON
     diff_json = read_file(args.diff)
+    added_endpoints = parse_added_endpoints(diff_json, spec_yaml)
 
-    # Determine added endpoints
-    added_endpoints = parse_added_endpoints(diff_json)
     if not added_endpoints:
         print("✅ No new endpoints detected – nothing to generate.", file=sys.stderr)
         sys.exit(0)
 
-    # Build LLM prompt
-    prompt = build_prompt(spec_str, added_endpoints, base_prompt)
-    if not prompt:
-        print("❌ Could not build prompt – aborting.", file=sys.stderr)
-        sys.exit(1)
-    print("\n=== Generated Prompt ===\n")
-    print(prompt)
-    print("\n=== End of Prompt ===\n")
-    
-
-    # Call Groq
-    try:
-        generated = call_groq(prompt, verbose=args.verbose)
-    except Exception as e:
-        print(f"❌ Groq request failed: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    # Write the feature file
+    grouped = group_endpoints(added_endpoints)
     output_path = Path(args.out)
     output_path.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-    feature_file = output_path / f"auto_generated_{timestamp}.feature"
 
-    if args.dry:
-        print(f"\n=== Dry-run: would write to {feature_file} ===\n")
-        print(generated)
-    else:
-        feature_file.write_text(generated, encoding="utf-8")
-        print(f"✅ Generated Karate tests → {feature_file}")
+    for base_path, endpoints in grouped.items():
+        prompt = build_prompt(spec_str, endpoints, base_prompt)
+        if not prompt:
+            print("❌ Could not build prompt – aborting.", file=sys.stderr)
+            sys.exit(1)
+
+        print("\n=== Generated Prompt ===\n")
+        print(prompt)
+        print("\n=== End of Prompt ===\n")
+
+        try:
+            generated = call_groq(prompt, verbose=args.verbose)
+        except Exception as e:
+            print(f"❌ Groq request failed: {e}", file=sys.stderr)
+            sys.exit(1)
+
+        filename = f"{base_path.strip('/').replace('/', '-') or 'root'}.feature"
+        feature_file = output_path / filename
+
+        if args.dry:
+            print(f"\n=== Dry-run: would write to {feature_file} ===\n")
+            print(generated)
+        else:
+            feature_file.write_text(generated, encoding="utf-8")
+            print(f"✅ Generated Karate tests → {feature_file}")
 
 
 # --------------------------------------------------------------------------- #
